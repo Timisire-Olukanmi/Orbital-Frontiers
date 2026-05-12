@@ -136,7 +136,7 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
       // Doppleganger spawn logic
       if (!newVisitedPlanets.includes(nearestId) && minDist < 3000) {
         newVisitedPlanets.push(nearestId);
-        if (Math.random() < 0.1) {
+        if (Math.random() < 0.3) {
           const planet = planets.find(p => p.id === nearestId)!;
           const spawnAngle = Math.random() * Math.PI * 2;
           const spawnDist = planet.radius + 1200;
@@ -155,8 +155,8 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
             thrustForce: 150,
             fireCooldown: 0,
             originalPos: ePos,
-            fakePlanetRadius: 100 + Math.random() * 80,
-            fakePlanetColor: '#b2bec3',
+            fakePlanetRadius: planet.radius,
+            fakePlanetColor: planet.color,
           });
         }
       }
@@ -302,16 +302,16 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
     // Ship firing
     if (newShip.laserCooldown > 0) newShip.laserCooldown -= dt;
     if (newShip.isFiringLaser && newShip.laserCooldown <= 0) {
-      let speedMult = 20;
+      let speedMult = 50;
       let cooldown = 0.2;
       let offsets = [0];
       
       if (newShip.weaponType === 'rapid') {
-          speedMult = 25;
+          speedMult = 65;
           cooldown = 0.08;
           offsets = [0];
       } else if (newShip.weaponType === 'heavy') {
-          speedMult = 15;
+          speedMult = 45;
           cooldown = 0.6;
           offsets = [-0.15, 0, 0.15];
       }
@@ -320,9 +320,9 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
           const fireAngle = newShip.angle + offset;
           newLasers.push({
             id: Math.random(),
-            pos: newShip.pos.add(new Vec2(Math.cos(fireAngle) * 15, Math.sin(fireAngle) * 15)),
+            pos: newShip.pos.add(new Vec2(Math.cos(fireAngle) * 30, Math.sin(fireAngle) * 30)),
             vel: newShip.vel.add(new Vec2(Math.cos(fireAngle) * speedMult, Math.sin(fireAngle) * speedMult)),
-            life: 2.0,
+            life: 5.0,
             friendly: true,
             weaponType: newShip.weaponType
           });
@@ -372,17 +372,21 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
     } else if (e.type === 'doppleganger') {
         targetPos = newShip.pos;
         targetDist = distToPlayer;
+        
+        const wakeUpDist = (e.fakePlanetRadius || 100) + 1200;
+        const attackDist = (e.fakePlanetRadius || 100) + 800;
+        const fleeDist = (e.fakePlanetRadius || 100) + 3000;
 
         if (e.state === 'idle') {
-            if (targetDist < 1200) {
+            if (targetDist < wakeUpDist) {
                 e.state = 'chase';
             } else {
                 targetPos = null;
             }
         } else if (e.state === 'chase' || e.state === 'attack') {
-            if (targetDist > 3000) {
+            if (targetDist > fleeDist) {
                 e.state = 'flee';
-            } else if (targetDist < 800) {
+            } else if (targetDist < attackDist) {
                 e.state = 'attack';
             } else {
                 e.state = 'chase';
@@ -394,7 +398,7 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
                 e.health = 0; // disappear
                 continue;
             }
-            if (targetDist < 1000) {
+            if (targetDist < wakeUpDist - 200) {
                 e.state = 'chase'; // re-engage
             }
         }
@@ -629,7 +633,7 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
                    const brake = e.vel.normalize().mult(-e.thrustForce * 0.8);
                    force = force.add(brake);
                }
-            } else if (targetDist > (e.type === 'creature' ? 200 : (e.type === 'doppleganger' ? 300 : 500))) {
+            } else if (targetDist > (e.type === 'creature' ? 200 : (e.type === 'doppleganger' ? (e.fakePlanetRadius || 100) + 200 : 500))) {
                const thrust = new Vec2(Math.cos(e.angle), Math.sin(e.angle)).mult(e.thrustForce);
                force = force.add(thrust);
             }
@@ -639,9 +643,9 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
         if (e.state === 'attack' && e.type === 'spaceship' && e.fireCooldown <= 0 && Math.abs(angleDiff) < 0.2) {
           newLasers.push({
             id: Math.random(),
-            pos: e.pos.add(new Vec2(Math.cos(e.angle) * 15, Math.sin(e.angle) * 15)),
-            vel: e.vel.add(new Vec2(Math.cos(e.angle) * 20, Math.sin(e.angle) * 20)),
-            life: 2.0,
+            pos: e.pos.add(new Vec2(Math.cos(e.angle) * 30, Math.sin(e.angle) * 30)),
+            vel: e.vel.add(new Vec2(Math.cos(e.angle) * 40, Math.sin(e.angle) * 40)),
+            life: 5.0,
             friendly: !!e.recruited,
             weaponType: 'enemy'
           });
@@ -649,14 +653,16 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
           e.fireCooldown = 1.0;
         }
 
-        if (e.state === 'attack' && (e.type === 'creature' || e.type === 'doppleganger') && targetDist < 1000 && e.fireCooldown <= 0 && Math.abs(angleDiff) < 0.5) {
+        const attackRange = e.type === 'doppleganger' ? (e.fakePlanetRadius || 100) + 1000 : 1000;
+        if (e.state === 'attack' && (e.type === 'creature' || e.type === 'doppleganger') && targetDist < attackRange && e.fireCooldown <= 0 && Math.abs(angleDiff) < 0.5) {
             const dirs = [-0.2, 0, 0.2];
+            const spawnOffset = e.type === 'doppleganger' && e.fakePlanetRadius ? e.fakePlanetRadius + 50 : 30;
             for (let d of dirs) {
                 newLasers.push({
                     id: Math.random(),
-                    pos: e.pos.add(new Vec2(Math.cos(e.angle + d) * 30, Math.sin(e.angle + d) * 30)),
-                    vel: e.vel.add(new Vec2(Math.cos(e.angle + d) * 15, Math.sin(e.angle + d) * 15)),
-                    life: e.type === 'doppleganger' ? 2.0 : 3.0,
+                    pos: e.pos.add(new Vec2(Math.cos(e.angle + d) * spawnOffset, Math.sin(e.angle + d) * spawnOffset)),
+                    vel: e.vel.add(new Vec2(Math.cos(e.angle + d) * 40, Math.sin(e.angle + d) * 40)),
+                    life: 5.0,
                     friendly: false,
                     weaponType: 'enemy'
                 });
@@ -684,7 +690,7 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
     
     // Check hit ship
     if (!l.friendly && newShip.state !== 'crashed' && newShip.state !== 'destroyed' && l.pos.distance(newShip.pos) < 15) {
-      newShip.health -= 10;
+      newShip.health -= 30;
       hit = true;
       spawnVFX('hit', l.pos, 5, '#ff4757', 3, 50);
       newSounds.push('hit');
@@ -701,9 +707,12 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
     if (!hit) {
         if (l.friendly) {
           for (let e of newEntities) {
-            const collisionDist = e.type === 'creature' ? 40 : 20;
+            let collisionDist = e.type === 'creature' ? 40 : 20;
+            if (e.type === 'doppleganger' && e.fakePlanetRadius) {
+                collisionDist = e.fakePlanetRadius;
+            }
             if (e.health > 0 && l.pos.distance(e.pos) < collisionDist) {
-              const damage = l.weaponType === 'heavy' ? 60 : (l.weaponType === 'rapid' ? 12 : 25);
+              const damage = l.weaponType === 'heavy' ? 200 : (l.weaponType === 'rapid' ? 40 : 80);
               e.health -= damage;
               hit = true;
               
@@ -734,7 +743,7 @@ export function updatePhysics(state: GameState, planets: Planet[], dt: number): 
         } else {
           for (let e of newEntities) {
             if (e.health > 0 && e.attitude === 'friendly' && l.pos.distance(e.pos) < 20) {
-              e.health -= 25;
+              e.health -= 60;
               hit = true;
               spawnVFX('hit', l.pos, 5, '#ff4757', 3, 50);
               newSounds.push('hit');

@@ -580,29 +580,30 @@ export const useGame = () => {
                 ctx.restore();
             } else {
                 // reveal true form
+                const baseR = e.fakePlanetRadius || 100;
                 ctx.fillStyle = '#ff3838';
                 ctx.beginPath();
                 // jagged shape
                 for(let i=0; i<10; i++) {
                     const angle = (i/10) * Math.PI * 2;
-                    const r = 50 + (i%2===0 ? 30 : 0) + Math.cos(time/100 + i)*10;
+                    const r = baseR * 0.8 + (i%2===0 ? baseR * 0.3 : 0) + Math.cos(time/100 + i)*10;
                     if(i===0) ctx.moveTo(Math.cos(angle)*r, Math.sin(angle)*r);
                     else ctx.lineTo(Math.cos(angle)*r, Math.sin(angle)*r);
                 }
                 ctx.closePath();
                 ctx.fill();
                 ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = Math.max(1, baseR * 0.05);
                 ctx.stroke();
                 
                 // eye
                 ctx.fillStyle = '#111';
                 ctx.beginPath();
-                ctx.arc(15, 0, 20, 0, Math.PI*2);
+                ctx.arc(baseR * 0.3, 0, baseR * 0.3, 0, Math.PI*2);
                 ctx.fill();
                 ctx.fillStyle = '#ff0000';
                 ctx.beginPath();
-                ctx.arc(20, 0, 8, 0, Math.PI*2);
+                ctx.arc(baseR * 0.4, 0, baseR * 0.15, 0, Math.PI*2);
                 ctx.fill();
             }
         }
@@ -615,10 +616,14 @@ export const useGame = () => {
         if (cameraModeRef.current === 'chase' || cameraModeRef.current === 'cockpit' || cameraModeRef.current === 'behind') {
             ctx.rotate(ship.angle + Math.PI / 2); // keep text upright
         }
+        
+        const hpOffset = (e.type === 'doppleganger' && e.state === 'idle') ? (e.fakePlanetRadius || 100) + 15 : 25;
+        const maxHealth = e.type === 'creature' ? 500 : (e.type === 'doppleganger' ? 800 : 100);
+        
         ctx.fillStyle = 'rgba(231, 76, 60, 0.5)';
-        ctx.fillRect(-15, -25, 30, 4);
+        ctx.fillRect(-15, -hpOffset, 30, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(-15, -25, 30 * (e.health / (e.type === 'creature' ? 500 : 100)), 4);
+        ctx.fillRect(-15, -hpOffset, 30 * (Math.max(0, e.health) / maxHealth), 4);
         ctx.restore();
       }
 
